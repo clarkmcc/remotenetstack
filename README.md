@@ -88,7 +88,7 @@ e := channel.New(128, 1024, "")
 s.CreateNIC(1, e)
 
 // Create a libp2p host
-host, err := libp2p.New(...)
+host, err := libp2p.New()
 if err != nil {
     panic(err)
 }
@@ -96,7 +96,7 @@ if err != nil {
 // Initialize the p2p netstack protocol. This effectively attaches the netstack 
 // above to the libp2p host. Packets sent to this libp2p host using the appropriate 
 // protocol will be forwarded and handled by the netstack.
-_, err = p2p.New(host, e)
+_, err = transportp2p.New(host, e)
 if err != nil {
     panic(err)
 }
