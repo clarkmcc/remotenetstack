@@ -17,18 +17,22 @@ import (
 	"time"
 )
 
-// TCPForwarder knows how to forward TCP traffic from the userspace network stack to
-// the host's network stack. TCP dialing requests from the userspace network stack are
-// done by the host's network stack which allows userspace traffic to exit the userspace
-// stack.
+// TCPForwarder knows how to forward TCP traffic from the userspace network Stack to
+// the host's network Stack. TCP dialing requests from the userspace network Stack are
+// done by the host's network Stack which allows userspace traffic to exit the userspace
+// Stack.
 type TCPForwarder struct {
 	Logger *zap.Logger
 }
 
 func (f *TCPForwarder) Handle(r *tcp.ForwarderRequest) {
 	req := r.ID()
-	logger := f.Logger.With(zap.Reflect("req", req))
-	logger.Debug("forwarding tcp", zap.Reflect("req", req))
+	logger := f.Logger.With(
+		zap.Uint16("local_port", req.LocalPort),
+		zap.String("local_address", net.IP(req.LocalAddress).String()),
+		zap.Uint16("remote_port", req.RemotePort),
+		zap.String("remote_address", net.IP(req.RemoteAddress).String()))
+	logger.Debug("forwarding tcp")
 
 	var wq waiter.Queue
 	ep, tcpErr := r.CreateEndpoint(&wq)
@@ -62,8 +66,12 @@ type HTTPOverTCPForwarder struct {
 
 func (f *HTTPOverTCPForwarder) Handle(r *tcp.ForwarderRequest) {
 	req := r.ID()
-	logger := f.Logger.With(zap.Reflect("req", req))
-	logger.Debug("forwarding http over tcp", zap.Reflect("req", req))
+	logger := f.Logger.With(
+		zap.Uint16("local_port", req.LocalPort),
+		zap.String("local_address", net.IP(req.LocalAddress).String()),
+		zap.Uint16("remote_port", req.RemotePort),
+		zap.String("remote_address", net.IP(req.RemoteAddress).String()))
+	logger.Debug("forwarding http over tcp")
 
 	var wq waiter.Queue
 	ep, tcpErr := r.CreateEndpoint(&wq)
@@ -83,8 +91,8 @@ func (f *HTTPOverTCPForwarder) Handle(r *tcp.ForwarderRequest) {
 	}
 }
 
-// UDPForwarder knows how to forward UDP traffic from the userspace network stack through
-// the host networking stack.
+// UDPForwarder knows how to forward UDP traffic from the userspace network Stack through
+// the host networking Stack.
 type UDPForwarder struct {
 	Logger  *zap.Logger
 	Stack   *stack.Stack
