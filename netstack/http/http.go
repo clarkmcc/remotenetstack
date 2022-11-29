@@ -15,12 +15,14 @@ import (
 
 type Option func(*Config)
 
+// WithTLSConfig overrides the default TLS configuration for the HTTP transport.
 func WithTLSConfig(cfg *tls.Config) Option {
 	return func(config *Config) {
 		config.TLSConfig = cfg
 	}
 }
 
+// WithLogger sets the logger to use inside the HTTP client
 func WithLogger(logger *zap.Logger) Option {
 	return func(config *Config) {
 		config.Logger = logger

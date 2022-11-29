@@ -4,16 +4,23 @@ import (
 	"context"
 	"fmt"
 	"github.com/clarkmcc/remotenetstack/utils"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 	"gvisor.dev/gvisor/pkg/waiter"
+	"io"
 	"net"
+	"net/http"
 	"time"
 )
 
+// TCPForwarder knows how to forward TCP traffic from the userspace network stack to
+// the host's network stack. TCP dialing requests from the userspace network stack are
+// done by the host's network stack which allows userspace traffic to exit the userspace
+// stack.
 type TCPForwarder struct {
 	Logger *zap.Logger
 }
@@ -46,6 +53,38 @@ func (f *TCPForwarder) Handle(r *tcp.ForwarderRequest) {
 	utils.Join(source, target)
 }
 
+// HTTPOverTCPForwarder is a proof-of-concept for a TCP forwarder that only handles HTTP
+// requests and forwards them to a local HTTP server.
+type HTTPOverTCPForwarder struct {
+	Server http.Server
+	Logger *zap.Logger
+}
+
+func (f *HTTPOverTCPForwarder) Handle(r *tcp.ForwarderRequest) {
+	req := r.ID()
+	logger := f.Logger.With(zap.Reflect("req", req))
+	logger.Debug("forwarding http over tcp", zap.Reflect("req", req))
+
+	var wq waiter.Queue
+	ep, tcpErr := r.CreateEndpoint(&wq)
+	if tcpErr != nil {
+		r.Complete(true)
+		return
+	}
+	r.Complete(false)
+	ep.SocketOptions().SetKeepAlive(true)
+
+	source := gonet.NewTCPConn(&wq, ep)
+	defer source.Close()
+
+	err := f.Server.Serve(&singleConnListener{conn: source})
+	if err != nil {
+		logger.Error("serving http", zap.Error(err))
+	}
+}
+
+// UDPForwarder knows how to forward UDP traffic from the userspace network stack through
+// the host networking stack.
 type UDPForwarder struct {
 	Logger  *zap.Logger
 	Stack   *stack.Stack
@@ -131,4 +170,27 @@ func (u *UDPForwarder) Handle(r *udp.ForwarderRequest) {
 		cancel()
 		logger.Debug("udp forwarder stopped")
 	}()
+}
+
+var _ net.Listener = &singleConnListener{}
+
+// singleConnListener is a net.Listener that only provides a single connection.
+type singleConnListener struct {
+	conn net.Conn
+	done atomic.Bool
+}
+
+func (s *singleConnListener) Accept() (net.Conn, error) {
+	if s.done.Load() {
+		return nil, io.EOF
+	}
+	return s.conn, nil
+}
+
+func (s *singleConnListener) Close() error {
+	return nil
+}
+
+func (s *singleConnListener) Addr() net.Addr {
+	return &net.TCPAddr{}
 }

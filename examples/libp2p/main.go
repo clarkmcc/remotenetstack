@@ -17,6 +17,9 @@ import (
 var logger = zap.NewExample()
 
 func main() {
+	// This is the IP address of some device on your local network. In this case, this
+	// is the IP address to my router. We're going to connect to this from the first
+	// netstack, through the second netstack, and then into the local network.
 	ipAddress := "192.168.1.1"
 
 	// Set up a networking stack and attach it to a p2p host

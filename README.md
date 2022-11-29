@@ -14,7 +14,7 @@ These primitives aim to be un-opinionated in order to be flexible, at the cost o
 This project is extremely experimental. While most of the heavy lifting is being performed by production-ready projects like gvisor's netstack, and libp2p, the APIs exposed in this project will change until the first major release.
 
 ## Use Cases
-* TCP/UDP tunneling without the need to configure the tunnel endpoint up-front. The userspace netstack allows callers to dial through to any IP address supported by the netstacks routing table.
+* TCP/UDP tunneling without the need to configure the tunnel endpoint up-front. The userspace netstack allows callers to dial through to any IP address supported by the netstack's routing table.
 * Remote network interface. This allows you to put a "exit network interface" on one machine, an "entrance network interface" on another machine, connect the two somehow (libp2p, quic, tcp, etc) and then make network connections from the "entrance network interface" as if you were making connections from the "exit network interface".
 * As a pluggable package in an existing project to provide VPN-like functionality on top of already-secured and authorized connections.
 
