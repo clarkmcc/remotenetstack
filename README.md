@@ -4,7 +4,7 @@ RemoteNetstack provides utilities for running user-space network stacks where th
 
 ![](./assets/architecture-1.png)
 
-This project maintains the core primitive that makes this work [`netstack.Endpoint`](netstack/channel.go) as well as some other useful utilities.
+This project maintains the core primitive that makes this work [`netstack.Endpoint`](./netstack/endpoint.go) as well as some other useful utilities.
 * Custom data link layer [using libp2p streams](#libp2p) as the underlying transport. Any libp2p host can be used as a data link layer by attaching a custom stream handler. This pattern can also be used to make other data link layer implementations like a QUIC-based implementation (coming soon).
 * Create HTTP clients using a netstack as the underlying transport.
 * Custom TCP and UDP forwarding implementations which allow netstacks to forward TCP requests to the host's TCP stack.
@@ -12,6 +12,10 @@ This project maintains the core primitive that makes this work [`netstack.Endpoi
 These primitives aim to be un-opinionated in order to be flexible, at the cost of requiring a bit more manual plumbing to implement; for example, none of the primitives create a netstack for you, they accept only the netstack's endpoint as a parameter, but require you to configure and maintain the actual netstack.
 
 This project is extremely experimental. While most of the heavy lifting is being performed by production-ready projects like gvisor's netstack, and libp2p, the APIs exposed in this project will change until the first major release.
+
+## Use Cases
+* TCP/UDP tunneling without the need to configure the tunnel endpoint up-front. The userspace netstack allows callers to dial through to any IP address supported by the netstacks routing table.
+* Remote network interface. This allows you to put a "exit network interface" on one machine, an "entrance network interface" on another machine, connect the two somehow (libp2p, quic, tcp, etc) and then make network connections from the "entrance network interface" as if you were making connections from the "exit network interface".
 
 ## Example
 The following example creates two userspace netstacks, one with the IP address 10.0.0.1 and a routing rule that handles all traffic to 192.168.1.0/24, and the other with an IP address of 192.168.1.1 and a routing rule that handles all traffic (0.0.0.0/0). The two netstacks are connected in memory. All packets written two the first netstack's endpoint are read from the second netstack's endpoint, and vice versa.
@@ -103,6 +107,8 @@ if err != nil {
 ```
 
 ## Thanks
-This projects only provides utilities on top of the following great projects:
+This projects is built on, or was inspired by the work in these great projects:
 * [gvisor (netstack)](https://gvisor.dev/)
 * [libp2p](https://libp2p.io/)
+* [Tailscale](https://github.com/tailscale/tailscale)
+* [Nebula](https://github.com/slackhq/nebula)
