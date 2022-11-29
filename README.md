@@ -16,6 +16,7 @@ This project is extremely experimental. While most of the heavy lifting is being
 ## Use Cases
 * TCP/UDP tunneling without the need to configure the tunnel endpoint up-front. The userspace netstack allows callers to dial through to any IP address supported by the netstacks routing table.
 * Remote network interface. This allows you to put a "exit network interface" on one machine, an "entrance network interface" on another machine, connect the two somehow (libp2p, quic, tcp, etc) and then make network connections from the "entrance network interface" as if you were making connections from the "exit network interface".
+* As a pluggable package in an existing project to provide VPN-like functionality on top of already-secured and authorized connections.
 
 ## Example
 The following example creates two userspace netstacks, one with the IP address 10.0.0.1 and a routing rule that handles all traffic to 192.168.1.0/24, and the other with an IP address of 192.168.1.1 and a routing rule that handles all traffic (0.0.0.0/0). The two netstacks are connected in memory. All packets written two the first netstack's endpoint are read from the second netstack's endpoint, and vice versa.
