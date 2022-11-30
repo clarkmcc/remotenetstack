@@ -21,6 +21,8 @@ This project is extremely experimental. While most of the heavy lifting is being
 ## Example
 The following example demonstrates how to use the virtual network interface (VNI) to dial through an entrance netstack and out through an exit netstack. The link layer in this example is an in-memory pipe ([`net.Pipe`](https://pkg.go.dev/net#Pipe)). In this example we're making HTTP requests (using a custom dialer that dials over the userspace networking stack) through the entrance networking stack, and the HTTP request is forwarded to the 192.168.1.1 IP address by the exit networking stack.
 
+In this example both the VNIs are running in memory, however, given a `LinkLayer` between them, these VNIs can be run on completely different machines.
+
 ```go
 package main
 
@@ -34,12 +36,11 @@ import (
 	"net/http"
 )
 
-var logger = zap.NewExample()
-
 func main() {
 	// This is the IP address of some device on your local network. In this case, this
-	// is the IP address to my router. We're going to connect to this from the first
-	// netstack, through the second netstack, and then into the local network.
+	// is the IP address to my router. We're going to connect to this from the entrance
+	// virtual network interface, and out to the local network through the second virtual 
+	// network interface.
 	ipAddress := "192.168.1.1"
 
 	// Set up an in-memory pipe. Packets sent to the entrance interface will flow
@@ -48,14 +49,12 @@ func main() {
 
 	// Set up the entrance interface
 	entrance, _ := vni.New(vni.Config{
-		Logger:    logger,
 		Mode:      vni.Entrance,
 		LinkLayer: l1,
 	})
 
 	// Set up the exit interface.
 	exit, _ := vni.New(vni.Config{
-		Logger:    logger,
 		Mode:      vni.Exit,
 		LinkLayer: l2,
 	})
