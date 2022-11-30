@@ -9,7 +9,7 @@ This project maintains the core primitive that makes this work [`netstack.Endpoi
 * Create HTTP clients using a netstack as the underlying transport.
 * Custom TCP and UDP forwarding implementations which allow netstacks to forward TCP requests to the host's TCP stack.
 
-These primitives aim to be un-opinionated in order to be flexible, at the cost of requiring a bit more manual plumbing to implement; for example, none of the primitives create a netstack for you, they accept only the netstack's endpoint as a parameter, but require you to configure and maintain the actual netstack.
+Some primitives in this project aim to be un-opinionated in order to be flexible at the cost of requiring a bit more manual plumbing to implement such as [`netstack.Endpoint`](./netstack/endpoint.go), while other primitives such as [`vni.Interface`](./netstack/vni/vni.go) handle all the netstack plumbing for you, but are harder to configure.
 
 This project is extremely experimental. While most of the heavy lifting is being performed by production-ready projects like gvisor's netstack, and libp2p, the APIs exposed in this project will change until the first major release.
 
