@@ -1,6 +1,6 @@
 ![](./assets/banner.png)
 
-RemoteNetstack provides utilities for running userspace network stacks using a data link layer implementation that only needs to implement the [`io.Reader`](https://pkg.go.dev/io#Reader) and [`io.Writer`](https://pkg.go.dev/io#Writer) interfaces. This single abstraction allows for interesting functionality, like the ability to dial through an existing connection, and out of a userspace networking stack located on another physical machine, effectively acting as a remote network interface.
+RemoteNetstack provides utilities for running userspace network stacks using a data link layer implementation that only needs to implement the [`io.Reader`](https://pkg.go.dev/io#Reader) and [`io.Writer`](https://pkg.go.dev/io#Writer) interfaces. This single abstraction allows for interesting functionality, like the ability to dial through an existing connection, and out of a userspace networking stack located on another physical machine, effectively acting as a remote network interface. Think about it like TCP tunneling, except at layer 3 rather than layer 4.
 
 ![](./assets/architecture-1.png)
 
@@ -19,18 +19,18 @@ This project is extremely experimental. While most of the heavy lifting is being
 * As a pluggable package in an existing project to provide VPN-like functionality on top of already-secured and authorized connections.
 
 ## Example
-The following example creates two userspace netstacks, one with the IP address 10.0.0.1 and a routing rule that handles all traffic to 192.168.1.0/24, and the other with an IP address of 192.168.1.1 and a routing rule that handles all traffic (0.0.0.0/0). The two netstacks are connected in memory. All packets written two the first netstack's endpoint are read from the second netstack's endpoint, and vice versa.
+The following example demonstrates how to use the virtual network interface (VNI) to dial through an entrance netstack and out through an exit netstack. The link layer in this example is an in-memory pipe ([`net.Pipe`](https://pkg.go.dev/net#Pipe)). In this example we're making HTTP requests (using a custom dialer that dials over the userspace networking stack) through the entrance networking stack, and the HTTP request is forwarded to the 192.168.1.1 IP address by the exit networking stack.
 
 ```go
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
-	"github.com/clarkmcc/remotenetstack/netstack"
 	netstackhttp "github.com/clarkmcc/remotenetstack/netstack/http"
+	"github.com/clarkmcc/remotenetstack/netstack/vni"
 	"go.uber.org/zap"
 	"io"
+	"net"
 	"net/http"
 )
 
@@ -42,41 +42,35 @@ func main() {
 	// netstack, through the second netstack, and then into the local network.
 	ipAddress := "192.168.1.1"
 
-	// Create one netstack with the IP address 10.0.0.1
-	s1, err := netstack.NewTestStack(logger.Named("s1"), "10.0.0.1", []string{"192.168.1.0/24"}, false)
-	if err != nil {
-		panic(err)
-	}
+	// Set up an in-memory pipe. Packets sent to the entrance interface will flow
+	// through this pipe and exit the exit interface.
+	l1, l2 := net.Pipe()
 
-	// Create another netstack with the IP address 192.168.0.1
-	s2, err := netstack.NewTestStack(logger.Named("s2"), "192.168.1.1", []string{"0.0.0.0/0"}, true)
-	if err != nil {
-		panic(err)
-	}
+	// Set up the entrance interface
+	entrance, _ := vni.New(vni.Config{
+		Logger:    logger,
+		Mode:      vni.Entrance,
+		LinkLayer: l1,
+	})
 
-	// Connect the two netstacks using a data-link layer that exists only in-memory
-	go netstack.MemoryPipe(s1.Endpoint, s2.Endpoint)
+	// Set up the exit interface.
+	exit, _ := vni.New(vni.Config{
+		Logger:    logger,
+		Mode:      vni.Exit,
+		LinkLayer: l2,
+	})
+	exit.ExposeRoutes([]string{
+		"192.168.1.1/32",
+	})
 
 	// Get a new http.Client that dials using the netstack
-	client := netstackhttp.GetClient(s1.Stack, 1,
-		netstackhttp.WithLogger(logger),
-		netstackhttp.WithTLSConfig(&tls.Config{InsecureSkipVerify: true}))
-
-	// Make an HTTP request
-	req, err := http.NewRequest(http.MethodGet, "http://"+ipAddress, nil)
-	if err != nil {
-		panic(err)
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
+	client := netstackhttp.GetClient(entrance.Stack, 1)
+	req, _ := http.NewRequest(http.MethodGet, "http://"+ipAddress, nil)
+	res, _ := client.Do(req)
+	b, _ := io.ReadAll(res.Body)
 	fmt.Println(string(b))
 }
+
 ```
 
 ## Data-Link Layers
