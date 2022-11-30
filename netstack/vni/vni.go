@@ -18,6 +18,11 @@ import (
 	"net/netip"
 )
 
+// defaultNicAddress is the address of the NIC in the virtual network interface. It's assigned arbitrarily
+// because it doesn't actually matter (right?) since we're not interfacing with any other networking systems
+var defaultNicAddress = tcpip.Address(netip.MustParseAddr("10.100.100.1").AsSlice())
+var defaultGatewayAddress = tcpip.Address(netip.MustParseAddr("10.100.100.1").AsSlice())
+
 // Mode determines how the Interface operates. In Entrance
 // mode, the routes determine whether packets are forwarded to the Exit interface. In Exit mode,
 // the routes determine what packets are allowed to be forwarded. We always route from
@@ -97,37 +102,10 @@ func New(config Config) (*Interface, error) {
 	s.AddProtocolAddress(nicId, tcpip.ProtocolAddress{
 		Protocol: ipv4.ProtocolNumber,
 		AddressWithPrefix: tcpip.AddressWithPrefix{
-			Address:   tcpip.Address(config.Address.AsSlice()),
+			Address:   defaultNicAddress,
 			PrefixLen: 32,
 		},
 	}, stack.AddressProperties{})
-
-	switch config.Mode {
-	case Entrance:
-		// For entrance interfaces, we want to accept packets for all routes
-		// and route them through this network interface.
-		r := tcpip.Route{
-			Destination: tcpip.AddressWithPrefix{
-				Address:   tcpip.Address(netip.MustParseAddr("0.0.0.0").AsSlice()),
-				PrefixLen: 0,
-			}.Subnet(),
-			Gateway: tcpip.Address(config.Address.AsSlice()),
-			NIC:     nicId,
-		}
-		logger.Debug(r.String())
-		s.AddRoute(r)
-	case Exit:
-		// Setup protocol forwarders on the exit interface
-		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcp.NewForwarder(s, 0, 5, (&netstack.TCPForwarder{
-			Logger: config.Logger.Named("tcp-forwarder"),
-		}).Handle).HandlePacket)
-		s.SetTransportProtocolHandler(udp.ProtocolNumber, udp.NewForwarder(s, (&netstack.UDPForwarder{
-			Logger: config.Logger.Named("udp-forwarder"),
-		}).Handle).HandlePacket)
-
-		s.SetPromiscuousMode(nicId, true)
-		s.SetSpoofing(nicId, true)
-	}
 
 	epw := netstack.WrapChannel(ep)
 	epw.Logger = logger.Named(config.Mode.String())
@@ -142,6 +120,41 @@ func New(config Config) (*Interface, error) {
 		linkLayer: config.LinkLayer,
 		stopChan:  make(chan struct{}),
 	}
+
+	switch config.Mode {
+	case Entrance:
+		// For entrance interfaces, we want to accept packets for all routes
+		// and route them through this network interface.
+		iface.addRoute(tcpip.Route{
+			Destination: tcpip.AddressWithPrefix{
+				Address:   tcpip.Address(netip.MustParseAddr("0.0.0.0").AsSlice()),
+				PrefixLen: 0,
+			}.Subnet(),
+			Gateway: defaultGatewayAddress,
+			NIC:     nicId,
+		})
+	case Exit:
+		// Setup protocol forwarders on the exit interface
+		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcp.NewForwarder(s, 0, 5, (&netstack.TCPForwarder{
+			Logger: config.Logger.Named("tcp-forwarder"),
+		}).Handle).HandlePacket)
+		s.SetTransportProtocolHandler(udp.ProtocolNumber, udp.NewForwarder(s, (&netstack.UDPForwarder{
+			Logger: config.Logger.Named("udp-forwarder"),
+		}).Handle).HandlePacket)
+
+		iface.addRoute(tcpip.Route{
+			Destination: tcpip.AddressWithPrefix{
+				Address:   defaultNicAddress,
+				PrefixLen: 32,
+			}.Subnet(),
+			Gateway: defaultGatewayAddress,
+			NIC:     nicId,
+		})
+
+		s.SetPromiscuousMode(nicId, true)
+		s.SetSpoofing(nicId, true)
+	}
+
 	go iface.linkLayerWorker()
 	return iface, nil
 }
@@ -165,6 +178,13 @@ func (v *Interface) linkLayerWorker() {
 	}
 }
 
+// addRoute adds a new route to the network interface and updates the netstack's routing table
+func (v *Interface) addRoute(route tcpip.Route) {
+	v.routes = append(v.routes, route)
+	v.logger.Debug("adding route", zap.String("route", route.String()))
+	v.Stack.SetRouteTable(v.routes)
+}
+
 // ExposeRoutes allows the caller to expose routes to the remote network interface. This should
 // only be called on Exit interfaces, entrance interfaces will automatically expose all routes.
 func (v *Interface) ExposeRoutes(routes []string) error {
@@ -180,17 +200,14 @@ func (v *Interface) ExposeRoutes(routes []string) error {
 		rp = append(rp, p)
 	}
 	for _, r := range rp {
-		route := tcpip.Route{
+		v.addRoute(tcpip.Route{
 			Destination: tcpip.AddressWithPrefix{
 				Address:   tcpip.Address(r.Masked().Addr().AsSlice()),
 				PrefixLen: r.Bits(),
 			}.Subnet(),
-			Gateway: tcpip.Address(v.self.AsSlice()),
+			Gateway: defaultGatewayAddress,
 			NIC:     v.nicId,
-		}
-		v.routes = append(v.routes, route)
-		v.logger.Debug("exposed route", zap.String("route", route.String()))
+		})
 	}
-	v.Stack.SetRouteTable(v.routes)
 	return nil
 }

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 )
 
 // This example illustrates how to use the virtual network interface (vni) package
@@ -28,7 +27,6 @@ func main() {
 
 	// Set up the entrance interface
 	entrance, err := vni.New(vni.Config{
-		Address:   netip.MustParseAddr("10.0.0.1"),
 		Logger:    logger,
 		Mode:      vni.Entrance,
 		LinkLayer: l1,
@@ -41,7 +39,6 @@ func main() {
 	// Set up the exit interface.
 	exit, err := vni.New(vni.Config{
 		Logger:    logger,
-		Address:   netip.MustParseAddr("192.168.1.1"),
 		Mode:      vni.Exit,
 		LinkLayer: l2,
 	})
@@ -50,7 +47,6 @@ func main() {
 	}
 	err = exit.ExposeRoutes([]string{
 		ipAddress + "/32",
-		"10.0.0.1/32",
 	})
 	if err != nil {
 		panic(err)

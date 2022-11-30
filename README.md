@@ -1,6 +1,6 @@
 ![](./assets/banner.png)
 
-RemoteNetstack provides utilities for running user-space network stacks using a data link layer implementation only needs to implement the [`io.Reader`](https://pkg.go.dev/io#Reader) and [`io.Writer`](https://pkg.go.dev/io#Writer) interfaces. This single abstraction allows for interesting functionality, like the ability to dial through an existing connection, and out of a userspace networking stack located on another physical machine, effectively acting as a remote network interface.
+RemoteNetstack provides utilities for running userspace network stacks using a data link layer implementation that only needs to implement the [`io.Reader`](https://pkg.go.dev/io#Reader) and [`io.Writer`](https://pkg.go.dev/io#Writer) interfaces. This single abstraction allows for interesting functionality, like the ability to dial through an existing connection, and out of a userspace networking stack located on another physical machine, effectively acting as a remote network interface.
 
 ![](./assets/architecture-1.png)
 
