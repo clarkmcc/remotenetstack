@@ -26,7 +26,7 @@ func MemoryPipe(c1, c2 *channel.Endpoint) {
 func WrapChannel(channel *channel.Endpoint) *Endpoint {
 	return &Endpoint{
 		Endpoint: channel,
-		logger:   zap.NewNop(),
+		Logger:   zap.NewNop(),
 	}
 }
 
@@ -34,7 +34,7 @@ func WrapChannel(channel *channel.Endpoint) *Endpoint {
 // the io.Reader and io.Writer interfaces.
 type Endpoint struct {
 	*channel.Endpoint
-	logger *zap.Logger
+	Logger *zap.Logger
 }
 
 func (e *Endpoint) Read(p []byte) (n int, err error) {
@@ -42,7 +42,7 @@ func (e *Endpoint) Read(p []byte) (n int, err error) {
 	b := pkt.ToBuffer()
 	n = copy(p, b.Flatten())
 	pkt.DecRef()
-	e.logger.Debug("read packet", zap.Int("bytes", n))
+	e.Logger.Debug("read packet", zap.Int("bytes", n))
 	return n, nil
 }
 
@@ -69,6 +69,6 @@ func (e *Endpoint) Write(p []byte) (n int, err error) {
 		return
 	}
 	e.InjectInbound(ipv, pb)
-	e.logger.Debug("wrote packet", zap.Int("bytes", len(p)))
+	e.Logger.Debug("wrote packet", zap.Int("bytes", len(p)))
 	return len(p), nil
 }

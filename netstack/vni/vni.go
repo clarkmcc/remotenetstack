@@ -1,8 +1,9 @@
-package netstack
+package vni
 
 import (
 	"errors"
 	"fmt"
+	"github.com/clarkmcc/remotenetstack/netstack"
 	"github.com/clarkmcc/remotenetstack/utils"
 	"go.uber.org/zap"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -17,18 +18,18 @@ import (
 	"net/netip"
 )
 
-// VNIMode determines how the VNI operates. In Entrance
+// Mode determines how the Interface operates. In Entrance
 // mode, the routes determine whether packets are forwarded to the Exit interface. In Exit mode,
 // the routes determine what packets are allowed to be forwarded. We always route from
 // entrance -> exit, not the other way around.
-type VNIMode uint
+type Mode uint
 
 const (
-	Entrance VNIMode = iota
+	Entrance Mode = iota
 	Exit
 )
 
-func (m VNIMode) String() string {
+func (m Mode) String() string {
 	switch m {
 	case Entrance:
 		return "entrance"
@@ -39,29 +40,29 @@ func (m VNIMode) String() string {
 	}
 }
 
-// VNI acts as a network interface that can be accessed remotely
-type VNI struct {
+// Interface acts as a network interface that can be accessed remotely
+type Interface struct {
 	logger    *zap.Logger
-	Stack     *stack.Stack      // Userspace networking Stack
-	ep        *channel.Endpoint // The internal netstack endpoint
-	epw       *Endpoint         // The wrapper around the netstack endpoint that allows us to read/write packets over arbitrary transports
-	self      netip.Addr        // IP address of this network interface
-	routes    []tcpip.Route     // Routes that are exposed via this network interface
-	mode      VNIMode           // Determines how this interface operates
-	nicId     tcpip.NICID       // The ID of the network interface in the netstack
+	Stack     *stack.Stack       // Userspace networking Stack
+	ep        *channel.Endpoint  // The internal netstack endpoint
+	epw       *netstack.Endpoint // The wrapper around the netstack endpoint that allows us to read/write packets over arbitrary transports
+	self      netip.Addr         // IP address of this network interface
+	routes    []tcpip.Route      // Routes that are exposed via this network interface
+	mode      Mode               // Determines how this interface operates
+	nicId     tcpip.NICID        // The ID of the network interface in the netstack
 	linkLayer io.ReadWriter
 	stopChan  chan struct{}
 }
 
-type VNIConfig struct {
+type Config struct {
 	Logger    *zap.Logger
 	Address   netip.Addr    // The IP address of this network interface
-	Mode      VNIMode       // The mode that this network interface should operate under
+	Mode      Mode          // The mode that this network interface should operate under
 	LinkLayer io.ReadWriter // The linkLayer where packets are read/written
 	MTU       uint32        // Maximum transmission unit
 }
 
-func NewVNI(config VNIConfig) (*VNI, error) {
+func New(config Config) (*Interface, error) {
 	if config.LinkLayer == nil {
 		return nil, errors.New("linkLayer cannot be nil")
 	}
@@ -117,10 +118,10 @@ func NewVNI(config VNIConfig) (*VNI, error) {
 		s.AddRoute(r)
 	case Exit:
 		// Setup protocol forwarders on the exit interface
-		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcp.NewForwarder(s, 0, 5, (&TCPForwarder{
+		s.SetTransportProtocolHandler(tcp.ProtocolNumber, tcp.NewForwarder(s, 0, 5, (&netstack.TCPForwarder{
 			Logger: config.Logger.Named("tcp-forwarder"),
 		}).Handle).HandlePacket)
-		s.SetTransportProtocolHandler(udp.ProtocolNumber, udp.NewForwarder(s, (&UDPForwarder{
+		s.SetTransportProtocolHandler(udp.ProtocolNumber, udp.NewForwarder(s, (&netstack.UDPForwarder{
 			Logger: config.Logger.Named("udp-forwarder"),
 		}).Handle).HandlePacket)
 
@@ -128,9 +129,9 @@ func NewVNI(config VNIConfig) (*VNI, error) {
 		s.SetSpoofing(nicId, true)
 	}
 
-	epw := WrapChannel(ep)
-	epw.logger = logger.Named(config.Mode.String())
-	iface := &VNI{
+	epw := netstack.WrapChannel(ep)
+	epw.Logger = logger.Named(config.Mode.String())
+	iface := &Interface{
 		Stack:     s,
 		nicId:     nicId,
 		epw:       epw,
@@ -145,13 +146,13 @@ func NewVNI(config VNIConfig) (*VNI, error) {
 	return iface, nil
 }
 
-// Stop stops the VNI and prevents it from forwarding any more packets to/from the linkLayer
-func (v *VNI) Stop() {
+// Stop stops the Interface and prevents it from forwarding any more packets to/from the linkLayer
+func (v *Interface) Stop() {
 	close(v.stopChan)
 }
 
 // linkLayerWorker reads/writes packets to/from the linkLayer and reads/writes them to the netstack.
-func (v *VNI) linkLayerWorker() {
+func (v *Interface) linkLayerWorker() {
 	for {
 		select {
 		case _, ok := <-v.stopChan:
@@ -166,7 +167,7 @@ func (v *VNI) linkLayerWorker() {
 
 // ExposeRoutes allows the caller to expose routes to the remote network interface. This should
 // only be called on Exit interfaces, entrance interfaces will automatically expose all routes.
-func (v *VNI) ExposeRoutes(routes []string) error {
+func (v *Interface) ExposeRoutes(routes []string) error {
 	if v.mode == Entrance {
 		return fmt.Errorf("cannot expose routes on entrance interface")
 	}
