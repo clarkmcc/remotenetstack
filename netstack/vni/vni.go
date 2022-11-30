@@ -51,7 +51,6 @@ type Interface struct {
 	Stack     *stack.Stack       // Userspace networking Stack
 	ep        *channel.Endpoint  // The internal netstack endpoint
 	epw       *netstack.Endpoint // The wrapper around the netstack endpoint that allows us to read/write packets over arbitrary transports
-	self      netip.Addr         // IP address of this network interface
 	routes    []tcpip.Route      // Routes that are exposed via this network interface
 	mode      Mode               // Determines how this interface operates
 	nicId     tcpip.NICID        // The ID of the network interface in the netstack
@@ -61,7 +60,6 @@ type Interface struct {
 
 type Config struct {
 	Logger    *zap.Logger
-	Address   netip.Addr    // The IP address of this network interface
 	Mode      Mode          // The mode that this network interface should operate under
 	LinkLayer io.ReadWriter // The linkLayer where packets are read/written
 	MTU       uint32        // Maximum transmission unit
@@ -114,7 +112,6 @@ func New(config Config) (*Interface, error) {
 		nicId:     nicId,
 		epw:       epw,
 		ep:        ep,
-		self:      config.Address,
 		mode:      config.Mode,
 		logger:    logger,
 		linkLayer: config.LinkLayer,
