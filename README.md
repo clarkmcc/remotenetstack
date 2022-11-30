@@ -30,7 +30,6 @@ import (
 	"fmt"
 	netstackhttp "github.com/clarkmcc/remotenetstack/netstack/http"
 	"github.com/clarkmcc/remotenetstack/netstack/vni"
-	"go.uber.org/zap"
 	"io"
 	"net"
 	"net/http"
