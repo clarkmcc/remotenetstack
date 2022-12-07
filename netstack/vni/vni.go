@@ -20,8 +20,8 @@ import (
 
 // defaultNicAddress is the address of the NIC in the virtual network interface. It's assigned arbitrarily
 // because it doesn't actually matter (right?) since we're not interfacing with any other networking systems
-var defaultNicAddress = tcpip.Address(netip.MustParseAddr("10.100.100.1").AsSlice())
-var defaultGatewayAddress = tcpip.Address(netip.MustParseAddr("10.100.100.1").AsSlice())
+var defaultNicAddress = tcpip.Address(netip.MustParseAddr("100.127.255.255").AsSlice())
+var defaultGatewayAddress = tcpip.Address(netip.MustParseAddr("100.127.255.255").AsSlice())
 
 // Mode determines how the Interface operates. In Entrance
 // mode, the routes determine whether packets are forwarded to the Exit interface. In Exit mode,
@@ -139,6 +139,7 @@ func New(config Config) (*Interface, error) {
 			Logger: config.Logger.Named("udp-forwarder"),
 		}).Handle).HandlePacket)
 
+		// Add the route back to the gateway
 		iface.addRoute(tcpip.Route{
 			Destination: tcpip.AddressWithPrefix{
 				Address:   defaultNicAddress,
